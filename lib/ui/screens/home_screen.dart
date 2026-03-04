@@ -1,3 +1,4 @@
+import 'package:another_telephony/telephony.dart';
 import 'package:flutter/material.dart';
 import '../../models/bus_arrival.dart';
 import '../../services/transit_service.dart';
@@ -27,12 +28,21 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  // ignore: prefer_function_declarations_over_variables
+  final SmsSendStatusListener listener = (SendStatus status) {
+    // Handle the status
+    print("=========================fsfdfsfsdfsdfsdf=================");
+    print('SMS Status: $status');
+  };
+
   Future<void> _searchBuses() async {
     // Hide keyboard
     FocusScope.of(context).unfocus();
 
-    if (_stopController.text.trim().isEmpty ||
-        _busController.text.trim().isEmpty) {
+    final stopId = _stopController.text.trim();
+    final busNumber = _busController.text.trim();
+
+    if (stopId.isEmpty || busNumber.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Please enter both Stop ID and Bus Number'),
@@ -46,6 +56,22 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
+    // Send SMS as requested
+    try {
+      print("==========================================");
+      print('Sending SMS: $stopId, $busNumber');
+      final Telephony telephony = Telephony.instance;
+      await telephony.requestPhoneAndSmsPermissions;
+      telephony.sendSms(
+        to: "33333",
+        message: '$stopId, $busNumber',
+        statusListener: listener,
+      );
+    } catch (e) {
+      print("==========================================");
+      debugPrint('Failed to send SMS: $e');
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -53,10 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      final results = await _transitService.getNextBuses(
-        _stopController.text.trim(),
-        _busController.text.trim(),
-      );
+      final results = await _transitService.getNextBuses(stopId, busNumber);
 
       setState(() {
         _arrivals = results;
