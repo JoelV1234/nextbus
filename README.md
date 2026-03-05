@@ -16,8 +16,6 @@ The primary purpose of **NextBus** is to provide a sleek, user-friendly interfac
 - **Intuitive Inputs**: Large, accessible text fields for quickly punching in Stop IDs and Route Numbers while on the go.
 - **Live Arrival Cards**: Easy-to-read layout showing destination, exact minutes until arrival, and clear delay indicators.
 
-> **Note**: The application currently runs with a mock `TransitService` providing dummy data to showcase the dynamic UI. The underlying architecture is set up seamlessly to integrate the SMS (33333) or API service.
-
 ## 🚀 Getting Started
 
 To run this project locally, ensure you have the [Flutter SDK](https://docs.flutter.dev/get-started/install) installed.
