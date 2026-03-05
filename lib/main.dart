@@ -4,6 +4,8 @@ import 'package:nextbus/locator.dart';
 import 'package:nextbus/providers/shared_preferences_provider.dart';
 import 'package:nextbus/providers/sms_provider.dart';
 import 'package:nextbus/providers/transit_provider.dart';
+import 'package:nextbus/providers/saved_stops_provider.dart';
+import 'package:nextbus/services/storage_service.dart';
 import 'package:nextbus/ui/screens/gate_screen/gate_provider.dart';
 import 'package:nextbus/ui/screens/gate_screen/gate_screen.dart';
 import 'package:provider/provider.dart';
@@ -24,9 +26,12 @@ void main() {
         Provider(create: (_) => SmsProvider()),
         Provider(create: (_) => SharedPreferencesProvider()),
         ChangeNotifierProxyProvider<SmsProvider, TransitProvider>(
-          update: (_, sms, transitProvider) => transitProvider ?? TransitProvider(sms), 
-          create: (BuildContext context) => TransitProvider(
-            context.read<SmsProvider>()),
+          update:
+              (_, sms, transitProvider) =>
+                  transitProvider ?? TransitProvider(sms),
+          create:
+              (BuildContext context) =>
+                  TransitProvider(context.read<SmsProvider>()),
         ),
         ChangeNotifierProxyProvider2<
           SmsProvider,
@@ -41,6 +46,9 @@ void main() {
           update:
               (context, sms, prefs, previous) =>
                   previous ?? GateProvider(prefs, sms),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => SavedStopsProvider(locator<StorageService>()),
         ),
       ],
       child: const NextBusApp(),

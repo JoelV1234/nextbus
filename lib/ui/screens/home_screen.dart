@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:nextbus/providers/transit_provider.dart';
 import 'package:provider/provider.dart';
 import '../../models/bus_arrival/bus_arrival.dart';
+import '../../models/saved_bus_pair.dart';
+import '../../providers/saved_stops_provider.dart';
 import '../../theme/app_theme.dart';
 import '../widgets/bus_arrival_card.dart';
+import '../widgets/saved_stop_card.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,6 +20,9 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _busController = TextEditingController();
   Stream<List<BusArrival>?>? _arrivalsStream;
   String? _errorMessage;
+  bool _isSearchValidated = false;
+  String _validatedStop = '';
+  String _validatedBus = '';
 
   @override
   void dispose() {
@@ -29,6 +35,19 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _stopController.addListener(_onInputChanged);
+    _busController.addListener(_onInputChanged);
+  }
+
+  void _onInputChanged() {
+    if (_isSearchValidated) {
+      if (_stopController.text.trim() != _validatedStop ||
+          _busController.text.trim() != _validatedBus) {
+        setState(() {
+          _isSearchValidated = false;
+        });
+      }
+    }
   }
 
   Future<void> _searchBuses() async {
@@ -46,10 +65,32 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       await context.read<TransitProvider>().sendSmsToNextBus(stopId, busNumber);
+      setState(() {
+        _isSearchValidated = true;
+        _validatedStop = stopId;
+        _validatedBus = busNumber;
+      });
     } catch (e) {
       setState(() {
         _errorMessage = e.toString();
+        _isSearchValidated = false;
       });
+    }
+  }
+
+  void _onSavedStopTap(SavedBusPair pair) {
+    _stopController.text = pair.stopId;
+    _busController.text = pair.busLine;
+    _searchBuses();
+  }
+
+  void _toggleSave() {
+    if (!_isSearchValidated) return;
+
+    final stopId = _stopController.text.trim();
+    final busLine = _busController.text.trim();
+    if (stopId.isNotEmpty && busLine.isNotEmpty) {
+      context.read<SavedStopsProvider>().toggleSavedStop(stopId, busLine);
     }
   }
 
@@ -169,32 +210,110 @@ class _HomeScreenState extends State<HomeScreen> {
                             onSubmitted: (_) => _searchBuses(),
                           ),
                           const SizedBox(height: 24),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 56,
-                            child: ElevatedButton(
-                              onPressed: _searchBuses,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppTheme.primaryBlue,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: SizedBox(
+                                  height: 56,
+                                  child: ElevatedButton(
+                                    onPressed: _searchBuses,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppTheme.primaryBlue,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      elevation: 0,
+                                    ),
+                                    child: const Text(
+                                      'Find Next Bus',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                                elevation: 0,
                               ),
-                              child: const Text(
-                                'Find Next Bus',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                              const SizedBox(width: 12),
+                              Consumer<SavedStopsProvider>(
+                                builder: (context, provider, child) {
+                                  final isSaved = provider.isSaved(
+                                    _stopController.text.trim(),
+                                    _busController.text.trim(),
+                                  );
+                                  return Container(
+                                    height: 56,
+                                    width: 56,
+                                    decoration: BoxDecoration(
+                                      color:
+                                          isSaved
+                                              ? AppTheme.accentYellow
+                                              : Colors.grey[100],
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: IconButton(
+                                      onPressed:
+                                          _isSearchValidated
+                                              ? _toggleSave
+                                              : null,
+                                      icon: Icon(
+                                        isSaved
+                                            ? Icons.bookmark_rounded
+                                            : Icons.bookmark_add_outlined,
+                                        color:
+                                            !_isSearchValidated
+                                                ? Colors.grey[400]
+                                                : isSaved
+                                                ? Colors.white
+                                                : AppTheme.primaryBlue,
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
-                            ),
+                            ],
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 32),
+
+                    Consumer<SavedStopsProvider>(
+                      builder: (context, provider, child) {
+                        if (provider.savedStops.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Favorites',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              height: 130,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                physics: const BouncingScrollPhysics(),
+                                itemCount: provider.savedStops.length,
+                                itemBuilder: (context, index) {
+                                  final pair = provider.savedStops[index];
+                                  return SavedStopCard(
+                                    pair: pair,
+                                    onTap: () => _onSavedStopTap(pair),
+                                    onRemove:
+                                        () => provider.removeSavedStop(pair),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 32),
+                          ],
+                        );
+                      },
+                    ),
 
                     if (_arrivalsStream != null || _errorMessage != null)
                       Text(
