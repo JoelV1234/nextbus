@@ -1,7 +1,7 @@
-import 'package:another_telephony/telephony.dart';
 import 'package:flutter/material.dart';
-import '../../models/bus_arrival.dart';
-import '../../services/transit_service.dart';
+import 'package:nextbus/providers/transit_provider.dart';
+import 'package:provider/provider.dart';
+import '../../models/bus_arrival/bus_arrival.dart';
 import '../../theme/app_theme.dart';
 import '../widgets/bus_arrival_card.dart';
 
@@ -15,25 +15,21 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _stopController = TextEditingController();
   final TextEditingController _busController = TextEditingController();
-  final TransitService _transitService = TransitService();
-
-  bool _isLoading = false;
-  List<BusArrival>? _arrivals;
+  Stream<List<BusArrival>?>? _arrivalsStream;
   String? _errorMessage;
 
   @override
   void dispose() {
     _stopController.dispose();
     _busController.dispose();
+    _arrivalsStream?.drain();
     super.dispose();
   }
 
-  // ignore: prefer_function_declarations_over_variables
-  final SmsSendStatusListener listener = (SendStatus status) {
-    // Handle the status
-    print("=========================fsfdfsfsdfsdfsdf=================");
-    print('SMS Status: $status');
-  };
+  @override
+  void initState() {
+    super.initState();
+  }
 
   Future<void> _searchBuses() async {
     // Hide keyboard
@@ -41,54 +37,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final stopId = _stopController.text.trim();
     final busNumber = _busController.text.trim();
-
-    if (stopId.isEmpty || busNumber.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please enter both Stop ID and Bus Number'),
-          backgroundColor: AppTheme.accentYellow,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
-      return;
-    }
-
-    // Send SMS as requested
-    try {
-      print("==========================================");
-      print('Sending SMS: $stopId, $busNumber');
-      final Telephony telephony = Telephony.instance;
-      await telephony.requestPhoneAndSmsPermissions;
-      telephony.sendSms(
-        to: "33333",
-        message: '$stopId, $busNumber',
-        statusListener: listener,
-      );
-    } catch (e) {
-      print("==========================================");
-      debugPrint('Failed to send SMS: $e');
-    }
-
+    context.read<TransitProvider>().refreshArrivalStream();
     setState(() {
-      _isLoading = true;
       _errorMessage = null;
-      _arrivals = null;
+      _arrivalsStream =
+          _arrivalsStream ?? context.read<TransitProvider>().nextBusesStream();
     });
 
     try {
-      final results = await _transitService.getNextBuses(stopId, busNumber);
-
-      setState(() {
-        _arrivals = results;
-        _isLoading = false;
-      });
+      await context.read<TransitProvider>().sendSmsToNextBus(stopId, busNumber);
     } catch (e) {
       setState(() {
         _errorMessage = e.toString();
-        _isLoading = false;
       });
     }
   }
@@ -213,7 +173,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             width: double.infinity,
                             height: 56,
                             child: ElevatedButton(
-                              onPressed: _isLoading ? null : _searchBuses,
+                              onPressed: _searchBuses,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppTheme.primaryBlue,
                                 foregroundColor: Colors.white,
@@ -222,23 +182,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                                 elevation: 0,
                               ),
-                              child:
-                                  _isLoading
-                                      ? const SizedBox(
-                                        height: 24,
-                                        width: 24,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                      : const Text(
-                                        'Find Next Bus',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
+                              child: const Text(
+                                'Find Next Bus',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ),
                         ],
@@ -246,9 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 32),
 
-                    if (_arrivals != null ||
-                        _isLoading ||
-                        _errorMessage != null)
+                    if (_arrivalsStream != null || _errorMessage != null)
                       Text(
                         'Live Arrivals',
                         style: Theme.of(context).textTheme.titleLarge,
@@ -259,15 +207,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
 
             // Results Section
-            if (_isLoading)
-              const SliverFillRemaining(
-                child: Center(
-                  child: CircularProgressIndicator(
-                    color: AppTheme.accentYellow,
-                  ),
-                ),
-              )
-            else if (_errorMessage != null)
+            if (_errorMessage != null)
               SliverFillRemaining(
                 child: Center(
                   child: Padding(
@@ -296,37 +236,46 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               )
-            else if (_arrivals != null && _arrivals!.isEmpty)
-              SliverFillRemaining(
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.directions_bus_outlined,
-                        size: 64,
-                        color: Colors.grey.shade400,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No buses found',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 18,
+            else if (_arrivalsStream != null)
+              StreamBuilder<List<BusArrival>?>(
+                stream: _arrivalsStream,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const SliverFillRemaining(
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: AppTheme.accentYellow,
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              )
-            else if (_arrivals != null)
-              SliverList(
-                delegate: SliverChildBuilderDelegate((context, index) {
-                  return BusArrivalCard(
-                    arrival: _arrivals![index],
-                    index: index,
+                    );
+                  }
+
+                  if (snapshot.hasError) {
+                    return SliverFillRemaining(
+                      child: Center(child: Text('Error: ${snapshot.error}')),
+                    );
+                  }
+
+                  final arrivals = snapshot.data;
+
+                  if (arrivals == null) {
+                    return SliverFillRemaining(
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: AppTheme.accentYellow,
+                        ),
+                      ),
+                    );
+                  }
+                  return SliverList(
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      return BusArrivalCard(
+                        arrival: arrivals[index],
+                        index: index,
+                      );
+                    }, childCount: arrivals.length),
                   );
-                }, childCount: _arrivals!.length),
+                },
               )
             else
               // Empty state before search

@@ -4,7 +4,7 @@ A beautiful, modern Flutter application designed to interact with Vancouver Tran
 
 ## 🌟 Purpose
 
-The primary purpose of **NextBus** is to provide a sleek, user-friendly interface for fetching live bus arrival times using the official **TransLink SMS system (33333)**. By simply entering your Stop ID and Bus Number, the app is designed to fetch your incoming transit schedules and present them beautifully.
+The primary purpose of **NextBus** is to provide a sleek, user-friendly interface for fetching live bus arrival times using the official **TransLink SMS system (33333)**. This is helpful for those who don't have a data connection or prefer to use SMS for quick lookups. By simply entering your Stop ID and Bus Number, the app is designed to fetch your incoming transit schedules and present them beautifully.
 
 ## ✨ Features
 

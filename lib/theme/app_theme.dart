@@ -9,6 +9,7 @@ class AppTheme {
   static const Color cardColor = Colors.white;
   static const Color textDark = Color(0xFF00174D);
   static const Color textLight = Color(0xFF6B7280);
+  static const Color warningRedColor = Color.fromARGB(255, 193, 48, 0);
 
   static ThemeData get lightTheme {
     return ThemeData(

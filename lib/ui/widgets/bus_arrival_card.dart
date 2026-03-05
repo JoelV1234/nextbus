@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../models/bus_arrival.dart';
+import '../../models/bus_arrival/bus_arrival.dart';
 import '../../theme/app_theme.dart';
 
 class BusArrivalCard extends StatelessWidget {
@@ -93,7 +93,7 @@ class BusArrivalCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            arrival.destination,
+                            arrival.destination ?? 'Bus Arrival',
                             style: Theme.of(
                               context,
                             ).textTheme.titleLarge?.copyWith(fontSize: 18),
@@ -104,22 +104,32 @@ class BusArrivalCard extends StatelessWidget {
                           Row(
                             children: [
                               Icon(
-                                arrival.isDelayed
-                                    ? Icons.warning_amber_rounded
-                                    : Icons.check_circle_outline,
+                                arrival.isCancelled
+                                    ? Icons.cancel_outlined
+                                    : arrival.isScheduled
+                                    ? Icons.schedule_rounded
+                                    : Icons.bolt_rounded,
                                 size: 16,
                                 color:
-                                    arrival.isDelayed
-                                        ? Colors.orange
+                                    arrival.isCancelled
+                                        ? AppTheme.warningRedColor
+                                        : arrival.isScheduled
+                                        ? Colors.grey
                                         : Colors.green,
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                arrival.isDelayed ? 'Delayed' : 'On Time',
+                                arrival.isCancelled
+                                    ? 'Cancelled'
+                                    : arrival.isScheduled
+                                    ? 'Scheduled'
+                                    : 'Real-time',
                                 style: TextStyle(
                                   color:
-                                      arrival.isDelayed
-                                          ? Colors.orange
+                                      arrival.isCancelled
+                                          ? AppTheme.warningRedColor
+                                          : arrival.isScheduled
+                                          ? Colors.grey
                                           : Colors.green,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13,
@@ -138,8 +148,14 @@ class BusArrivalCard extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 32,
                             fontWeight: FontWeight.w800,
+                            decoration:
+                                arrival.isCancelled
+                                    ? TextDecoration.lineThrough
+                                    : null,
                             color:
-                                arrival.minutesUntilArrival <= 5
+                                arrival.isCancelled
+                                    ? Colors.grey
+                                    : arrival.minutesUntilArrival <= 5
                                     ? AppTheme.accentYellow
                                     : AppTheme.textDark,
                           ),
@@ -147,6 +163,18 @@ class BusArrivalCard extends StatelessWidget {
                         Text(
                           'min',
                           style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          arrival.formattedArrivalTime,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color:
+                                arrival.isCancelled
+                                    ? Colors.grey.shade400
+                                    : AppTheme.textLight,
+                          ),
                         ),
                       ],
                     ),
