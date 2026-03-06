@@ -5,7 +5,7 @@ import '../../models/bus_arrival/bus_arrival.dart';
 import '../../models/saved_bus_pair.dart';
 import '../../providers/saved_stops_provider.dart';
 import '../../theme/app_theme.dart';
-import '../widgets/bus_arrival_card.dart';
+import '../widgets/live_arrivals_sheet.dart';
 import '../widgets/saved_stop_card.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -20,9 +20,6 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _busController = TextEditingController();
   Stream<List<BusArrival>?>? _arrivalsStream;
   String? _errorMessage;
-  bool _isSearchValidated = false;
-  String _validatedStop = '';
-  String _validatedBus = '';
 
   @override
   void dispose() {
@@ -35,19 +32,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _stopController.addListener(_onInputChanged);
-    _busController.addListener(_onInputChanged);
-  }
-
-  void _onInputChanged() {
-    if (_isSearchValidated) {
-      if (_stopController.text.trim() != _validatedStop ||
-          _busController.text.trim() != _validatedBus) {
-        setState(() {
-          _isSearchValidated = false;
-        });
-      }
-    }
   }
 
   Future<void> _searchBuses() async {
@@ -65,16 +49,47 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       await context.read<TransitProvider>().sendSmsToNextBus(stopId, busNumber);
-      setState(() {
-        _isSearchValidated = true;
-        _validatedStop = stopId;
-        _validatedBus = busNumber;
-      });
+
+      if (mounted) {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder:
+              (context) => DraggableScrollableSheet(
+                initialChildSize: 0.6,
+                minChildSize: 0.4,
+                maxChildSize: 0.9,
+                expand: false,
+                builder:
+                    (context, scrollController) => LiveArrivalsSheet(
+                      arrivalsStream: _arrivalsStream!,
+                      stopId: stopId,
+                      busNumber: busNumber,
+                      errorMessage: _errorMessage,
+                    ),
+              ),
+        );
+      }
     } catch (e) {
       setState(() {
         _errorMessage = e.toString();
-        _isSearchValidated = false;
       });
+
+      if (mounted) {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder:
+              (context) => LiveArrivalsSheet(
+                arrivalsStream: const Stream.empty(),
+                stopId: stopId,
+                busNumber: busNumber,
+                errorMessage: _errorMessage,
+              ),
+        );
+      }
     }
   }
 
@@ -82,16 +97,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _stopController.text = pair.stopId;
     _busController.text = pair.busLine;
     _searchBuses();
-  }
-
-  void _toggleSave() {
-    if (!_isSearchValidated) return;
-
-    final stopId = _stopController.text.trim();
-    final busLine = _busController.text.trim();
-    if (stopId.isNotEmpty && busLine.isNotEmpty) {
-      context.read<SavedStopsProvider>().toggleSavedStop(stopId, busLine);
-    }
   }
 
   @override
@@ -210,69 +215,27 @@ class _HomeScreenState extends State<HomeScreen> {
                             onSubmitted: (_) => _searchBuses(),
                           ),
                           const SizedBox(height: 24),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: SizedBox(
-                                  height: 56,
-                                  child: ElevatedButton(
-                                    onPressed: _searchBuses,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppTheme.primaryBlue,
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      elevation: 0,
-                                    ),
-                                    child: const Text(
-                                      'Find Next Bus',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
+                          SizedBox(
+                            height: 56,
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _searchBuses,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.primaryBlue,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: const Text(
+                                'Find Next Bus',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              Consumer<SavedStopsProvider>(
-                                builder: (context, provider, child) {
-                                  final isSaved = provider.isSaved(
-                                    _stopController.text.trim(),
-                                    _busController.text.trim(),
-                                  );
-                                  return Container(
-                                    height: 56,
-                                    width: 56,
-                                    decoration: BoxDecoration(
-                                      color:
-                                          isSaved
-                                              ? AppTheme.accentYellow
-                                              : Colors.grey[100],
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    child: IconButton(
-                                      onPressed:
-                                          _isSearchValidated
-                                              ? _toggleSave
-                                              : null,
-                                      icon: Icon(
-                                        isSaved
-                                            ? Icons.bookmark_rounded
-                                            : Icons.bookmark_add_outlined,
-                                        color:
-                                            !_isSearchValidated
-                                                ? Colors.grey[400]
-                                                : isSaved
-                                                ? Colors.white
-                                                : AppTheme.primaryBlue,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
+                            ),
                           ),
                         ],
                       ),
@@ -314,115 +277,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                     ),
-
-                    if (_arrivalsStream != null || _errorMessage != null)
-                      Text(
-                        'Live Arrivals',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
                   ],
                 ),
               ),
             ),
-
-            // Results Section
-            if (_errorMessage != null)
-              SliverFillRemaining(
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(32.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.error_outline_rounded,
-                          color: Colors.redAccent,
-                          size: 64,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Oops!',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _errorMessage!,
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              )
-            else if (_arrivalsStream != null)
-              StreamBuilder<List<BusArrival>?>(
-                stream: _arrivalsStream,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const SliverFillRemaining(
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          color: AppTheme.accentYellow,
-                        ),
-                      ),
-                    );
-                  }
-
-                  if (snapshot.hasError) {
-                    return SliverFillRemaining(
-                      child: Center(child: Text('Error: ${snapshot.error}')),
-                    );
-                  }
-
-                  final arrivals = snapshot.data;
-
-                  if (arrivals == null) {
-                    return SliverFillRemaining(
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          color: AppTheme.accentYellow,
-                        ),
-                      ),
-                    );
-                  }
-                  return SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      return BusArrivalCard(
-                        arrival: arrivals[index],
-                        index: index,
-                      );
-                    }, childCount: arrivals.length),
-                  );
-                },
-              )
-            else
-              // Empty state before search
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Opacity(
-                    opacity: 0.5,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.search_rounded,
-                          size: 80,
-                          color: AppTheme.textLight.withOpacity(0.3),
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Enter stop and bus number\nto see live arrivals',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: AppTheme.textLight),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
             const SliverToBoxAdapter(child: SizedBox(height: 40)),
           ],
         ),
